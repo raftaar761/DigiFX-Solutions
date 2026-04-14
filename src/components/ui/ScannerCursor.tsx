@@ -1,95 +1,72 @@
-
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 
 export function ScannerCursor() {
-  const [isHovering, setIsHovering] = useState(false);
-  const cursorRef = useRef<HTMLDivElement>(null);
-  
-
+  const dotRef = useRef<HTMLDivElement>(null);
+  const ringRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let ticking = false;
-    const moveCursor = (e: MouseEvent) => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          if (cursorRef.current) {
-             cursorRef.current.style.transform = `translate3d(${e.clientX - 16}px, ${e.clientY - 16}px, 0)`;
-          }
-          ticking = false;
-        });
-        ticking = true;
+    let frameId: number;
+    let mouseX = -200, mouseY = -200;
+    let ringX = -200, ringY = -200;
+
+    const onMove = (e: MouseEvent) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    };
+
+    const animate = () => {
+      // Dot snaps instantly
+      if (dotRef.current) {
+        dotRef.current.style.transform = `translate3d(${mouseX - 4}px, ${mouseY - 4}px, 0)`;
       }
+      // Ring follows with smooth lag
+      ringX += (mouseX - ringX) * 0.12;
+      ringY += (mouseY - ringY) * 0.12;
+      if (ringRef.current) {
+        ringRef.current.style.transform = `translate3d(${ringX - 20}px, ${ringY - 20}px, 0)`;
+      }
+      frameId = requestAnimationFrame(animate);
     };
 
-    const handleMouseOver = (e: MouseEvent) => {
-      // Find closest interactive element
-      const target = e.target as HTMLElement;
-      const isInteractive = target.closest('button') || target.closest('a') || target.closest('input') || target.closest('[data-cursor="scan"]');
-      setIsHovering(!!isInteractive);
+    const onEnterLink = () => {
+      ringRef.current?.classList.add("scale-[2.5]", "border-primary");
+      ringRef.current?.classList.remove("border-white/30");
     };
 
-    window.addEventListener("mousemove", moveCursor, { passive: true });
-    window.addEventListener("mouseover", handleMouseOver, { passive: true });
+    const onLeaveLink = () => {
+      ringRef.current?.classList.remove("scale-[2.5]", "border-primary");
+      ringRef.current?.classList.add("border-white/30");
+    };
+
+    window.addEventListener("mousemove", onMove, { passive: true });
+    document.querySelectorAll("a, button, input").forEach(el => {
+      el.addEventListener("mouseenter", onEnterLink);
+      el.addEventListener("mouseleave", onLeaveLink);
+    });
+    frameId = requestAnimationFrame(animate);
 
     return () => {
-      window.removeEventListener("mousemove", moveCursor);
-      window.removeEventListener("mouseover", handleMouseOver);
+      cancelAnimationFrame(frameId);
+      window.removeEventListener("mousemove", onMove);
     };
   }, []);
 
   return (
-    <motion.div
-      ref={cursorRef}
-      className="fixed top-0 left-0 w-8 h-8 rounded-full border border-primary pointer-events-none z-50 flex items-center justify-center mix-blend-difference"
-      style={{
-        transform: "translate3d(-100px, -100px, 0)"
-      }}
-      animate={{
-        scale: isHovering ? 2 : 1,
-        backgroundColor: isHovering ? "rgba(0, 243, 255, 0.1)" : "transparent",
-        borderColor: isHovering ? "#00f3ff" : "rgba(255, 255, 255, 0.5)",
-      }}
-    >
-      <motion.div 
-        className="w-1 h-1 bg-white rounded-full"
-        animate={{ scale: isHovering ? 0 : 1 }}
+    <>
+      {/* Main dot — snaps instantly */}
+      <div
+        ref={dotRef}
+        className="fixed top-0 left-0 w-2 h-2 bg-primary rounded-full pointer-events-none z-[9998] mix-blend-difference will-change-transform"
+        style={{ transform: "translate3d(-200px,-200px,0)" }}
       />
-      
-      {/* Scanner Reticle Effect - Pre-allocated Object Pool */}
-      <motion.div 
-          className="absolute top-0 left-0 w-2 h-2 border-t border-l border-primary"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: isHovering ? 1 : 0 }}
+      {/* Outer ring — smooth lag follow */}
+      <div
+        ref={ringRef}
+        className="fixed top-0 left-0 w-10 h-10 rounded-full border border-white/30 pointer-events-none z-[9997] transition-[transform,border-color,scale] duration-300 ease-out will-change-transform"
+        style={{ transform: "translate3d(-200px,-200px,0)" }}
       />
-      <motion.div 
-          className="absolute top-0 right-0 w-2 h-2 border-t border-r border-primary"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: isHovering ? 1 : 0 }}
-      />
-      <motion.div 
-          className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-primary"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: isHovering ? 1 : 0 }}
-      />
-      <motion.div 
-          className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-primary"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: isHovering ? 1 : 0 }}
-      />
-      
-      {/* Scan Line - Always mounted but invisible when not hovering */}
-      <motion.div 
-          className="absolute w-full h-[1px] bg-primary/50"
-          initial={{ opacity: 0 }}
-          animate={{ 
-              opacity: isHovering ? 1 : 0,
-              top: isHovering ? ["0%", "100%", "0%"] : "0%"
-          }}
-          transition={{ duration: 1.5, repeat: isHovering ? Infinity : 0, ease: "linear" }}
-      />
-    </motion.div>
+    </>
   );
 }
